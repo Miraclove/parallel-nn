@@ -21,15 +21,21 @@ fi
 echo "Running inference on the first ten instances from iris_test.csv"
 echo "-------------------------------------"
 
-# Read the first ten instances (skip header)
+# Open the CSV file on file descriptor 3
+exec 3< <(tail -n +2 iris_test.csv | head -n 10)
+
 count=0
-tail -n +2 iris_test.csv | head -n 10 | while IFS= read -r line; do
+while IFS= read -r line <&3; do
     # Expecting CSV format: f1,f2,f3,f4,label
     IFS=',' read -r f1 f2 f3 f4 label <<< "$line"
     count=$((count+1))
     echo "Instance $count: Features: $f1, $f2, $f3, $f4 (Label: $label)"
     
     echo "Running MPI inference for instance $count..."
-    mpirun -np 4 ./parallel "$f1" "$f2" "$f3" "$f4"
+    # Redirect STDIN from /dev/null so mpirun doesn't consume the CSV lines.
+    mpirun -np 4 ./parallel "$f1" "$f2" "$f3" "$f4" < /dev/null
     echo "-------------------------------------"
 done
+
+# Close file descriptor 3
+exec 3<&-
